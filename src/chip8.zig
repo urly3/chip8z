@@ -1,279 +1,303 @@
 const std = @import("std");
 
-const Chip8 = struct {
-    var memory: [4096]u8 = undefined;
-    var cpu: CPU = .{
-        .memory = &memory[0],
-        .cur = &memory[0x0200],
-    };
+pub const Chip8 = struct {
+    memory: [4096]u8 = undefined,
+    stack: [*]u8,
+    display: [64 * 32]u8 = undefined,
+    cpu: CPU = .{},
 };
 
-const CPU = struct {
+pub const CPU = struct {
     // 16 8bit registers - 0x00 thorugh 0x0f.
-    // index into them to get values.
-    var registers: [16]u8 = .{0} ** 10;
-    const memory: [*]u8 = undefined;
-    var i: u16 = 0;
-    var cur: [*]u8 = undefined;
+    registers: [16]u8 = .{0} ** 16,
+    // a pointer set to the start of the interps memory addr.
+    memory: [*]u8 = undefined,
+    // display buffer.
+    display: [*]u8 = undefined,
+    // memory addr storage (12bit).
+    i: u16 = 0,
+    // current location in memory.
+    pc: [*]u8 = undefined,
 };
 
-fn readInstruction(cpu: *CPU) void {
-    if (cpu.cur[0] & 0x00 == 0x00) {
-        switch (cpu.cur[1]) {
+pub fn readInstruction(cpu: *CPU) void {
+    if (cpu.pc[0] & 0x00 == 0x00) {
+        switch (cpu.pc[1]) {
             // clear the screen.
             0xe0 => return,
             // return from sr.
             0xee => return,
-            else => unimplementedInstruction(cpu.cur[0], cpu.cur[1]),
+            else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
         }
 
         return;
     }
 
-    if (cpu.cur[0] & 0x1000 == 0x1000) {
+    if (cpu.pc[0] & 0x10 == 0x10) {
         // jump to addr.
-        const addr: u12 = std.mem.readInt(u12, cpu.cur + 1, .big);
-        cpu.cur = &cpu.memory[addr];
+        const addr: u16 = std.mem.readInt(u16, cpu.pc[0..2], .big) & 0x0fff;
+        cpu.pc = @ptrFromInt(addr);
         return;
     }
 
-    if (cpu.cur[0] & 0x2000 == 0x3000) {
+    if (cpu.pc[0] & 0x20 == 0x20) {
         // execute sr.
         return;
     }
 
-    if (cpu.cur[0] & 0x3000 == 0x3000) {
+    if (cpu.pc[0] & 0x30 == 0x30) {
         // skip next if rx == nn.
-        const rx: u8 = cpu.cur[0] & 0x0f;
-        if (cpu.registers[rx] == cpu.cur[1]) {
-            cpu.cur += 4;
+        const rx: u8 = cpu.pc[0] & 0x0f;
+        if (cpu.registers[rx] == cpu.pc[1]) {
+            cpu.pc += 4;
         } else {
-            cpu.cur += 2;
+            cpu.pc += 2;
         }
 
         return;
     }
 
-    if (cpu.cur[0] & 0x4000 == 0x4000) {
+    if (cpu.pc[0] & 0x40 == 0x40) {
         // skip next if rx != nn.
-        const rx: u8 = cpu.cur[0] & 0x0f;
-        if (cpu.registers[rx] != cpu.cur[1]) {
-            cpu.cur += 4;
+        const rx: u8 = cpu.pc[0] & 0x0f;
+        if (cpu.registers[rx] != cpu.pc[1]) {
+            cpu.pc += 4;
         } else {
-            cpu.cur += 2;
+            cpu.pc += 2;
         }
 
         return;
     }
 
-    if (cpu.cur[0] & 0x5000 == 0x5000) {
+    if (cpu.pc[0] & 0x50 == 0x50) {
         // skip next if rx == ry.
-        const rx: u8 = cpu.cur[0] & 0x0f;
-        const ry: u8 = cpu.cur[1] >> 1;
+        const rx: u8 = cpu.pc[0] & 0x0f;
+        const ry: u8 = cpu.pc[1] >> 1;
 
         if (cpu.registers[rx] == cpu.registers[ry]) {
-            cpu.cur += 4;
+            cpu.pc += 4;
         } else {
-            cpu.cur += 2;
+            cpu.pc += 2;
         }
 
         return;
     }
 
-    if (cpu.cur[0] & 0x6000 == 0x6000) {
+    if (cpu.pc[0] & 0x60 == 0x60) {
         // store nn in rx;
-        const rx: u8 = cpu.cur[0] & 0x0f;
-        cpu.registers[rx] = cpu.cur[1];
-        cpu.cur += 2;
+        const rx: u8 = cpu.pc[0] & 0x0f;
+        cpu.registers[rx] = cpu.pc[1];
+        cpu.pc += 2;
 
         return;
     }
 
-    if (cpu.cur[0] & 0x7000 == 0x7000) {
+    if (cpu.pc[0] & 0x70 == 0x70) {
         // add nn to rx.
-        const rx: u8 = cpu.cur[0] & 0x0f;
-        cpu.registers[rx] += cpu.cur[1];
-        cpu.cur += 2;
+        const rx: u8 = cpu.pc[0] & 0x0f;
+        cpu.registers[rx] += cpu.pc[1];
+        cpu.pc += 2;
         return;
     }
 
-    if (cpu.cur[0] & 0x8000 == 0x8000) {
-        switch (cpu.cur[1] & 0x0f) {
+    if (cpu.pc[0] & 0x80 == 0x80) {
+        switch (cpu.pc[1] & 0x0f) {
             // store ry in rx.
             0x00 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] = cpu.registers[ry];
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // set rx to rx | ry.
             0x01 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] |= cpu.registers[ry];
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // set rx to rx & ry.
             0x02 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] &= cpu.registers[ry];
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // set rx to rx ^ ry.
             0x03 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] ^= cpu.registers[ry];
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // add ry to rx,
             // set rf to carry.
             0x04 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 const tmp: u8 = cpu.registers[ry];
                 cpu.registers[rx] += tmp;
 
                 cpu.registers[0x0f] = @intFromBool(cpu.registers[rx] < tmp);
 
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // sub ry from rx,
             // set rf to !borrow.
             0x05 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 const tmp: u8 = cpu.registers[ry];
                 cpu.registers[rx] -= tmp;
 
                 cpu.registers[0x0f] = @intFromBool(!(cpu.registers[rx] > tmp));
 
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // store ry >> 1 in rx,
             // set rf to ry lsb pre-shift.
             0x06 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 const lsb: u8 = (cpu.registers[ry] & 0x01);
 
                 cpu.registers[rx] = cpu.registers[ry] >> 1;
                 cpu.registers[0x0f] = lsb;
 
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // store ry - rx in rx,
             // set rf to !borrow.
             0x07 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 const tmp: u8 = cpu.registers[rx];
                 cpu.registers[rx] = cpu.registers[ry] - tmp;
 
                 cpu.registers[0x0f] = @intFromBool(!(cpu.registers[rx] > tmp));
 
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
             // store ry << in rx,
             // set rf to msb pre-shift.
             0x08 => {
-                const rx: u8 = cpu.cur[0] & 0x0f;
-                const ry: u8 = cpu.cur[1] >> 1;
+                const rx: u8 = cpu.pc[0] & 0x0f;
+                const ry: u8 = cpu.pc[1] >> 1;
                 const msb: u8 = (cpu.registers[ry] & 0x80);
 
                 cpu.registers[rx] = cpu.registers[ry] << 1;
                 cpu.registers[0x0f] = msb;
 
-                cpu.cur += 2;
+                cpu.pc += 2;
                 return;
             },
-            else => unimplementedInstruction(cpu.cur[0], cpu.cur[1]),
+            else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
         }
     }
 
-    if (cpu.cur[0] & 0x9000 == 0x9000) {
+    if (cpu.pc[0] & 0x90 == 0x90) {
         // skip next if rx != ry.
-        const rx: u8 = cpu.cur[0] & 0x0f;
-        const ry: u8 = cpu.cur[1] >> 1;
+        const rx: u8 = cpu.pc[0] & 0x0f;
+        const ry: u8 = cpu.pc[1] >> 1;
 
         if (cpu.registers[rx] != cpu.registers[ry]) {
-            cpu.cur += 4;
+            cpu.pc += 4;
         } else {
-            cpu.cur += 2;
+            cpu.pc += 2;
         }
 
         return;
     }
 
-    if (cpu.cur[0] & 0xa000 == 0xa000) {
+    if (cpu.pc[0] & 0xa0 == 0xa0) {
         // i == nnn.
-        const addr: u12 = cpu.cur[0] & 0x0f;
+        var addr: u12 = cpu.pc[0] & 0x0f;
         addr <<= 8;
-        addr |= cpu.cur[1];
+        addr |= cpu.pc[1];
         cpu.i = addr;
 
-        cpu.cur += 2;
+        cpu.pc += 2;
 
         return;
     }
 
-    if (cpu.cur[0] & 0xb000 == 0xb000) {
+    if (cpu.pc[0] & 0xb0 == 0xb0) {
         // i == nnn + r0.
-        const addr: u12 = cpu.cur[0] & 0x0f;
+        var addr: u12 = cpu.pc[0] & 0x0f;
         addr <<= 8;
-        addr |= cpu.cur[1];
+        addr |= cpu.pc[1];
         addr += cpu.registers[0x00];
         cpu.i = addr;
 
-        cpu.cur += 2;
+        cpu.pc += 2;
 
         return;
     }
 
-    if (cpu.cur[0] & 0xc000 == 0xc000) {
+    if (cpu.pc[0] & 0xc0 == 0xc0) {
         // rx = random number 0-255 & NN.
-        const rx: u8 = cpu.cur[0] & 0x0f;
+        const rx: u8 = cpu.pc[0] & 0x0f;
         //TODO: RANDOM NUMBER
         const random: u8 = 66;
-        cpu.registers[rx] = random & cpu.cur[1];
+        cpu.registers[rx] = random & cpu.pc[1];
 
-        cpu.cur += 2;
+        cpu.pc += 2;
         return;
     }
 
-    if (cpu.cur[0] & 0xd000 == 0xd000) {
+    if (cpu.pc[0] & 0xd0 == 0xd0) {
         // draw sprite at rx, ry with Nbytes of data,
         // starting at i,
         // rf = 1 if pixel unset, else 0.
 
-        cpu.cur += 2;
+        const rx: u8 = cpu.pc[0] & 0x0f;
+        const ry: u8 = (cpu.pc[1] & 0xf0) >> 4;
+        const n: u8 = cpu.pc[1] & 0x0f;
+
+        const x = cpu.registers[rx];
+        const y = cpu.registers[ry];
+        var idx: usize = 0;
+        var byte: u8 = undefined;
+        while (idx < n) : (idx += 1) {
+            //TODO: DETECT COLLISIONS AND UPDATE RF
+            byte = cpu.memory[cpu.i];
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 7) & 0x01;
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 6) & 0x01;
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 5) & 0x01;
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 4) & 0x01;
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 3) & 0x01;
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 2) & 0x01;
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 1) & 0x01;
+            cpu.display[((y + idx) * 64) + x] ^= (byte >> 0) & 0x01;
+        }
+
+        cpu.pc += 2;
         return;
     }
 
-    if (cpu.cur[0] & 0xe000 == 0xe000) {
-        switch (cpu.cur[1]) {
+    if (cpu.pc[0] & 0xe0 == 0xe0) {
+        switch (cpu.pc[1]) {
             // skip next if key pressed in rx.
             0x9e => {
-                return;
+                unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
             },
             // skip next if key pressed not in rx.
             0xa1 => {
-                return;
+                unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
             },
-            else => unimplementedInstruction(cpu.cur[0], cpu.cur[1]),
+            else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
         }
     }
 
-    if (cpu.cur[0] & 0xf000 == 0xf000) {
+    if (cpu.pc[0] & 0xf0 == 0xf0) {
         // store delay timer in rx.
 
         // wait key press, store in rx.
@@ -293,6 +317,7 @@ fn readInstruction(cpu: *CPU) void {
 
         // fill r0 to rx (incl) with values starting at addr i.
         // i = i + x + 1.
+        unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
         return;
     }
 }
