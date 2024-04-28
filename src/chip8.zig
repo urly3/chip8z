@@ -21,10 +21,13 @@ pub const CPU = struct {
 };
 
 pub fn readInstruction(cpu: *CPU) void {
-    if (cpu.pc[0] & 0x00 == 0x00) {
+    // std.debug.print("cur: {x:0>2} {x:0>2}\n", .{ cpu.pc[0], cpu.pc[1] });
+
+    if (cpu.pc[0] == 0x00) {
+        //     std.debug.print("0x00", .{});
         switch (cpu.pc[1]) {
             // clear the screen.
-            0xe0 => return,
+            0xe0 => cpu.pc += 2,
             // return from sr.
             0xee => return,
             else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
@@ -33,19 +36,23 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0x10 == 0x10) {
+    if (cpu.pc[0] & 0xf0 == 0x10) {
         // jump to addr.
+        //     std.debug.print("0x10", .{});
         const addr: u16 = std.mem.readInt(u16, cpu.pc[0..2], .big) & 0x0fff;
-        cpu.pc = @ptrFromInt(addr);
+        cpu.pc = cpu.memory[addr..];
+        //     std.debug.print("addr: {x:0>4}", .{addr});
         return;
     }
 
-    if (cpu.pc[0] & 0x20 == 0x20) {
+    if (cpu.pc[0] & 0xf0 == 0x20) {
+        //     std.debug.print("0x20", .{});
         // execute sr.
         return;
     }
 
-    if (cpu.pc[0] & 0x30 == 0x30) {
+    if (cpu.pc[0] & 0xf0 == 0x30) {
+        //     std.debug.print("0x30", .{});
         // skip next if rx == nn.
         const rx: u8 = cpu.pc[0] & 0x0f;
         if (cpu.registers[rx] == cpu.pc[1]) {
@@ -57,7 +64,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0x40 == 0x40) {
+    if (cpu.pc[0] & 0xf0 == 0x40) {
+        //     std.debug.print("0x40", .{});
         // skip next if rx != nn.
         const rx: u8 = cpu.pc[0] & 0x0f;
         if (cpu.registers[rx] != cpu.pc[1]) {
@@ -69,7 +77,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0x50 == 0x50) {
+    if (cpu.pc[0] & 0xf0 == 0x50) {
+        //     std.debug.print("0x50", .{});
         // skip next if rx == ry.
         const rx: u8 = cpu.pc[0] & 0x0f;
         const ry: u8 = cpu.pc[1] >> 1;
@@ -83,7 +92,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0x60 == 0x60) {
+    if (cpu.pc[0] & 0xf0 == 0x60) {
+        //     std.debug.print("0x60", .{});
         // store nn in rx;
         const rx: u8 = cpu.pc[0] & 0x0f;
         cpu.registers[rx] = cpu.pc[1];
@@ -92,7 +102,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0x70 == 0x70) {
+    if (cpu.pc[0] & 0xf0 == 0x70) {
+        //     std.debug.print("0x70", .{});
         // add nn to rx.
         const rx: u8 = cpu.pc[0] & 0x0f;
         cpu.registers[rx] += cpu.pc[1];
@@ -100,7 +111,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0x80 == 0x80) {
+    if (cpu.pc[0] & 0xf0 == 0x80) {
+        //     std.debug.print("0x80", .{});
         switch (cpu.pc[1] & 0x0f) {
             // store ry in rx.
             0x00 => {
@@ -189,6 +201,7 @@ pub fn readInstruction(cpu: *CPU) void {
             // store ry << in rx,
             // set rf to msb pre-shift.
             0x08 => {
+                //             std.debug.print("shift left.\n", .{});
                 const rx: u8 = cpu.pc[0] & 0x0f;
                 const ry: u8 = cpu.pc[1] >> 1;
                 const msb: u8 = (cpu.registers[ry] & 0x80);
@@ -203,7 +216,8 @@ pub fn readInstruction(cpu: *CPU) void {
         }
     }
 
-    if (cpu.pc[0] & 0x90 == 0x90) {
+    if (cpu.pc[0] & 0xf0 == 0x90) {
+        //     std.debug.print("0x90", .{});
         // skip next if rx != ry.
         const rx: u8 = cpu.pc[0] & 0x0f;
         const ry: u8 = cpu.pc[1] >> 1;
@@ -217,7 +231,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0xa0 == 0xa0) {
+    if (cpu.pc[0] & 0xf0 == 0xa0) {
+        //     std.debug.print("0xa0", .{});
         // i == nnn.
         var addr: u12 = cpu.pc[0] & 0x0f;
         addr <<= 8;
@@ -229,7 +244,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0xb0 == 0xb0) {
+    if (cpu.pc[0] & 0xf0 == 0xb0) {
+        //     std.debug.print("0xb0", .{});
         // i == nnn + r0.
         var addr: u12 = cpu.pc[0] & 0x0f;
         addr <<= 8;
@@ -242,7 +258,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0xc0 == 0xc0) {
+    if (cpu.pc[0] & 0xf0 == 0xc0) {
+        //     std.debug.print("0xc0", .{});
         // rx = random number 0-255 & NN.
         const rx: u8 = cpu.pc[0] & 0x0f;
         //TODO: RANDOM NUMBER
@@ -253,7 +270,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0xd0 == 0xd0) {
+    if (cpu.pc[0] & 0xf0 == 0xd0) {
+        //     std.debug.print("0xd0", .{});
         // draw sprite at rx, ry with Nbytes of data,
         // starting at i,
         // rf = 1 if pixel unset, else 0.
@@ -283,7 +301,8 @@ pub fn readInstruction(cpu: *CPU) void {
         return;
     }
 
-    if (cpu.pc[0] & 0xe0 == 0xe0) {
+    if (cpu.pc[0] & 0xf0 == 0xe0) {
+        //     std.debug.print("0xe0", .{});
         switch (cpu.pc[1]) {
             // skip next if key pressed in rx.
             0x9e => {
@@ -298,6 +317,7 @@ pub fn readInstruction(cpu: *CPU) void {
     }
 
     if (cpu.pc[0] & 0xf0 == 0xf0) {
+        //     std.debug.print("0xf0", .{});
         // store delay timer in rx.
 
         // wait key press, store in rx.
@@ -320,6 +340,8 @@ pub fn readInstruction(cpu: *CPU) void {
         unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
         return;
     }
+
+    unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
 }
 
 fn unimplementedInstruction(code: u8, code2: u8) void {

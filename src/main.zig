@@ -42,17 +42,27 @@ pub fn main() !void {
     _ = try file.readAll(mem[0x0200..]);
 
     const ns: u64 = @as(u64, @intFromFloat((1.0 / 700.0) * 1000_000)) * 1000;
-    std.debug.print("sleeping: {d}ns\n\n", .{ns});
     var i: usize = 0;
+
     while (true) {
-        if (i < 132) {
-            std.debug.print("{x:0>2} ", .{mem[0x0200 + i]});
-            if ((i + 1) % 16 == 0) {
+        if (i >= 64 * 32) {
+            i = 0;
+            continue;
+        }
+        if (i % 64 == 0) {
+            if (i != 0) {
                 std.debug.print("\n", .{});
             }
-            i += 1;
         }
-        // c8.readInstruction(&chip8.cpu);
+        if (dis[i] == 0) {
+            std.debug.print(" ", .{});
+        } else {
+            std.debug.print("o", .{});
+        }
+
+        i += 1;
+
+        c8.readInstruction(&chip8.cpu);
         std.time.sleep(ns);
     }
 }
