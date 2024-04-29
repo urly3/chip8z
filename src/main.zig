@@ -41,26 +41,24 @@ pub fn main() !void {
 
     _ = try file.readAll(mem[0x0200..]);
 
-    const ns: u64 = @as(u64, @intFromFloat((1.0 / 700.0) * 1000_000)) * 1000;
-    var i: usize = 0;
+    const ns: u64 = 150_000_000;
 
     while (true) {
-        if (i >= 64 * 32) {
-            i = 0;
-            continue;
+        for (0..25) |_| {
+            std.debug.print("\n", .{});
         }
-        if (i % 64 == 0) {
-            if (i != 0) {
-                std.debug.print("\n", .{});
+        for (dis, 0..) |pixel, i| {
+            if (i % 64 == 0) {
+                if (i != 0) {
+                    std.debug.print("\n", .{});
+                }
+            }
+            if (pixel == 0) {
+                std.debug.print(" ", .{});
+            } else {
+                std.debug.print("o", .{});
             }
         }
-        if (dis[i] == 0) {
-            std.debug.print(" ", .{});
-        } else {
-            std.debug.print("o", .{});
-        }
-
-        i += 1;
 
         c8.readInstruction(&chip8.cpu);
         std.time.sleep(ns);
