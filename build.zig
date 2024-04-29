@@ -15,12 +15,28 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const raylib_dep = b.dependency("raylib-zig", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const raylib = raylib_dep.module("raylib"); // main raylib module
+    const raylib_math = raylib_dep.module("raylib-math"); // raymath module
+    const rlgl = raylib_dep.module("rlgl"); // rlgl module
+    const raylib_artifact = raylib_dep.artifact("raylib"); // raylib C library
+
     const exe = b.addExecutable(.{
         .name = "chip8z",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    _ = b.addModule("raylib", .{});
+    exe.linkLibrary(raylib_artifact);
+    exe.root_module.addImport("raylib", raylib);
+    exe.root_module.addImport("raylib-math", raylib_math);
+    exe.root_module.addImport("rlgl", rlgl);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

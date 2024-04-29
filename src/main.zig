@@ -1,5 +1,6 @@
 const std = @import("std");
 const c8 = @import("chip8.zig");
+const rl = @import("raylib");
 
 pub fn main() !void {
     const rom = "roms/ibm_logo.ch8";
