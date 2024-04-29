@@ -41,7 +41,7 @@ pub fn main() !void {
 
     _ = try file.readAll(mem[0x0200..]);
 
-    const ns: u64 = 150_000_000;
+    const ns: u64 = 250_000_000;
 
     while (true) {
         for (0..25) |_| {
@@ -54,9 +54,9 @@ pub fn main() !void {
                 }
             }
             if (pixel == 0) {
-                std.debug.print(" ", .{});
+                std.debug.print(". ", .{});
             } else {
-                std.debug.print("o", .{});
+                std.debug.print("o ", .{});
             }
         }
 

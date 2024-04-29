@@ -234,7 +234,7 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0xa0) {
         //     std.debug.print("0xa0", .{});
         // i == nnn.
-        var addr: u12 = cpu.pc[0] & 0x0f;
+        var addr: u16 = cpu.pc[0] & 0x0f;
         addr <<= 8;
         addr |= cpu.pc[1];
         cpu.i = addr;
@@ -277,24 +277,25 @@ pub fn readInstruction(cpu: *CPU) void {
         // rf = 1 if pixel unset, else 0.
 
         const rx: u8 = cpu.pc[0] & 0x0f;
-        const ry: u8 = (cpu.pc[1] & 0xf0) >> 4;
+        const ry: u8 = (cpu.pc[1]) >> 4;
         const n: u8 = cpu.pc[1] & 0x0f;
 
-        const x = cpu.registers[rx];
-        const y = cpu.registers[ry];
+        const x = cpu.registers[rx] % 64;
+        const y = cpu.registers[ry] % 32;
         var idx: usize = 0;
         var byte: u8 = undefined;
+        cpu.registers[0x0f] = 0;
         while (idx < n) : (idx += 1) {
             //TODO: DETECT COLLISIONS AND UPDATE RF
-            byte = cpu.memory[cpu.i];
+            byte = cpu.memory[cpu.i + idx];
             cpu.display[((y + idx) * 64) + x] ^= (byte >> 7) & 0x01;
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 6) & 0x01;
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 5) & 0x01;
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 4) & 0x01;
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 3) & 0x01;
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 2) & 0x01;
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 1) & 0x01;
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 0) & 0x01;
+            cpu.display[((y + idx) * 64) + x + 1] ^= (byte >> 6) & 0x01;
+            cpu.display[((y + idx) * 64) + x + 2] ^= (byte >> 5) & 0x01;
+            cpu.display[((y + idx) * 64) + x + 3] ^= (byte >> 4) & 0x01;
+            cpu.display[((y + idx) * 64) + x + 4] ^= (byte >> 3) & 0x01;
+            cpu.display[((y + idx) * 64) + x + 5] ^= (byte >> 2) & 0x01;
+            cpu.display[((y + idx) * 64) + x + 6] ^= (byte >> 1) & 0x01;
+            cpu.display[((y + idx) * 64) + x + 7] ^= (byte) & 0x01;
         }
 
         cpu.pc += 2;
