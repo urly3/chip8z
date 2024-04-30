@@ -286,16 +286,32 @@ pub fn readInstruction(cpu: *CPU) void {
         var byte: u8 = undefined;
         cpu.registers[0x0f] = 0;
         while (idx < n) : (idx += 1) {
-            //TODO: DETECT COLLISIONS AND UPDATE RF
             byte = cpu.memory[cpu.i + idx];
-            cpu.display[((y + idx) * 64) + x] ^= (byte >> 7) & 0x01;
-            cpu.display[((y + idx) * 64) + x + 1] ^= (byte >> 6) & 0x01;
-            cpu.display[((y + idx) * 64) + x + 2] ^= (byte >> 5) & 0x01;
-            cpu.display[((y + idx) * 64) + x + 3] ^= (byte >> 4) & 0x01;
-            cpu.display[((y + idx) * 64) + x + 4] ^= (byte >> 3) & 0x01;
-            cpu.display[((y + idx) * 64) + x + 5] ^= (byte >> 2) & 0x01;
-            cpu.display[((y + idx) * 64) + x + 6] ^= (byte >> 1) & 0x01;
-            cpu.display[((y + idx) * 64) + x + 7] ^= (byte) & 0x01;
+            const coord = ((y + idx) * 64) + x;
+
+            cpu.registers[0x0f] = cpu.display[coord] ^ (byte >> 7) & 0x01;
+            cpu.display[coord] = cpu.registers[0x0f];
+
+            cpu.registers[0x0f] = cpu.display[coord + 1] ^ (byte >> 6) & 0x01;
+            cpu.display[coord + 1] = cpu.registers[0x0f];
+
+            cpu.registers[0x0f] = cpu.display[coord + 2] ^ (byte >> 5) & 0x01;
+            cpu.display[coord + 2] = cpu.registers[0x0f];
+
+            cpu.registers[0x0f] = cpu.display[coord + 3] ^ (byte >> 4) & 0x01;
+            cpu.display[coord + 3] = cpu.registers[0x0f];
+
+            cpu.registers[0x0f] = cpu.display[coord + 4] ^ (byte >> 3) & 0x01;
+            cpu.display[coord + 4] = cpu.registers[0x0f];
+
+            cpu.registers[0x0f] = cpu.display[coord + 5] ^ (byte >> 2) & 0x01;
+            cpu.display[coord + 5] = cpu.registers[0x0f];
+
+            cpu.registers[0x0f] = cpu.display[coord + 6] ^ (byte >> 1) & 0x01;
+            cpu.display[coord + 6] = cpu.registers[0x0f];
+
+            cpu.registers[0x0f] = cpu.display[coord + 7] ^ (byte) & 0x01;
+            cpu.display[coord + 7] = cpu.registers[0x0f];
         }
 
         cpu.pc += 2;
