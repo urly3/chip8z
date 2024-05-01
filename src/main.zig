@@ -3,7 +3,25 @@ const c8 = @import("chip8.zig");
 const rl = @import("raylib");
 
 pub fn main() !void {
-    const rom = "roms/ibm_logo.ch8";
+    const scale = 20;
+    const tile_width = scale;
+    const tile_height = scale;
+    const window_width = 64 * scale;
+    const window_height = 32 * scale;
+
+    rl.initWindow(window_width, window_height, "chip8");
+    defer rl.closeWindow();
+
+    const tile_black = rl.genImageColor(tile_width, tile_height, rl.Color.maroon);
+    const tile_white = rl.genImageColor(tile_width, tile_height, rl.Color.black);
+
+    const tile_black_tex = rl.loadTextureFromImage(tile_black);
+    const tile_white_tex = rl.loadTextureFromImage(tile_white);
+
+    tile_black.unload();
+    tile_white.unload();
+
+    const rom = "roms/chip8_logo.ch8";
     const file = try std.fs.cwd().openFile(rom, .{});
     const font: [80]u8 = .{
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -44,20 +62,22 @@ pub fn main() !void {
 
     const ns: u64 = 250_000_000;
 
-    while (true) {
-        for (0..25) |_| {
-            std.debug.print("\n", .{});
-        }
-        for (dis, 0..) |pixel, i| {
-            if (i % 64 == 0) {
-                if (i != 0) {
-                    std.debug.print("\n", .{});
-                }
+    while (!rl.windowShouldClose()) {
+        rl.beginDrawing();
+        defer rl.endDrawing();
+
+        var x: i32 = 0;
+        var y: i32 = 0;
+        for (dis) |pixel| {
+            defer x += 1;
+            if (x == 64) {
+                x = 0;
+                y += tile_height;
             }
             if (pixel == 0) {
-                std.debug.print(". ", .{});
+                rl.drawTexture(tile_black_tex, x * tile_width, y, rl.Color.white);
             } else {
-                std.debug.print("o ", .{});
+                rl.drawTexture(tile_white_tex, x * tile_width, y, rl.Color.white);
             }
         }
 
