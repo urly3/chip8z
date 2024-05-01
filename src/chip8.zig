@@ -1,9 +1,9 @@
 const std = @import("std");
 
 pub const Chip8 = struct {
-    memory: [4096]u8 = undefined,
+    memory: []u8,
     stack: [*]u8,
-    display: [64 * 32]u8 = undefined,
+    display: []u8,
     cpu: CPU = .{},
 };
 

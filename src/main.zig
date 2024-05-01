@@ -49,9 +49,9 @@ pub fn main() !void {
     var dis: [64 * 32]u8 = .{0} ** (64 * 32);
 
     var chip8: c8.Chip8 = .{
-        .memory = mem,
+        .memory = &mem,
         .stack = mem[0x01bb..],
-        .display = dis,
+        .display = &dis,
         .cpu = .{
             .memory = &mem,
             .pc = mem[0x0200..],
@@ -61,7 +61,7 @@ pub fn main() !void {
 
     @memcpy(chip8.memory[0x0066 .. 0x0066 + font.len], font[0..]);
 
-    _ = try file.readAll(mem[0x0200..]);
+    _ = try file.readAll(chip8.memory[0x0200..]);
 
     const ns: u64 = 250_000_000;
 
@@ -71,17 +71,13 @@ pub fn main() !void {
 
         var x: i32 = 0;
         var y: i32 = 0;
-        for (dis) |pixel| {
+        for (chip8.display) |pixel| {
             defer x += 1;
             if (x == 64) {
                 x = 0;
                 y += tile_height;
             }
-            if (pixel == 0) {
-                rl.drawTexture(tile_black_tex, x * tile_width, y, rl.Color.white);
-            } else {
-                rl.drawTexture(tile_white_tex, x * tile_width, y, rl.Color.white);
-            }
+            rl.drawTexture(if (pixel == 0) tile_black_tex else tile_white_tex, x * tile_width, y, rl.Color.white);
         }
 
         c8.readInstruction(&chip8.cpu);
