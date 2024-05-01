@@ -18,6 +18,9 @@ pub fn main() !void {
     const tile_black_tex = rl.loadTextureFromImage(tile_black);
     const tile_white_tex = rl.loadTextureFromImage(tile_white);
 
+    defer tile_black_tex.unload();
+    defer tile_white_tex.unload();
+
     tile_black.unload();
     tile_white.unload();
 
