@@ -3,7 +3,7 @@ const c8 = @import("chip8.zig");
 const rl = @import("raylib");
 
 pub fn main() !void {
-    const scale = 20;
+    const scale = 4;
     const tile_width = scale;
     const tile_height = scale;
     const window_width = 64 * scale;

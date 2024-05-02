@@ -22,6 +22,8 @@ pub const CPU = struct {
 
 pub fn readInstruction(cpu: *CPU) void {
     // std.debug.print("cur: {x:0>2} {x:0>2}\n", .{ cpu.pc[0], cpu.pc[1] });
+    const rx: u8 = cpu.pc[0] & 0x0f;
+    const ry: u8 = cpu.pc[1] >> 4;
 
     if (cpu.pc[0] == 0x00) {
         //     std.debug.print("0x00", .{});
@@ -54,7 +56,6 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0x30) {
         //     std.debug.print("0x30", .{});
         // skip next if rx == nn.
-        const rx: u8 = cpu.pc[0] & 0x0f;
         if (cpu.registers[rx] == cpu.pc[1]) {
             cpu.pc += 4;
         } else {
@@ -67,7 +68,6 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0x40) {
         //     std.debug.print("0x40", .{});
         // skip next if rx != nn.
-        const rx: u8 = cpu.pc[0] & 0x0f;
         if (cpu.registers[rx] != cpu.pc[1]) {
             cpu.pc += 4;
         } else {
@@ -80,8 +80,6 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0x50) {
         //     std.debug.print("0x50", .{});
         // skip next if rx == ry.
-        const rx: u8 = cpu.pc[0] & 0x0f;
-        const ry: u8 = cpu.pc[1] >> 1;
 
         if (cpu.registers[rx] == cpu.registers[ry]) {
             cpu.pc += 4;
@@ -95,7 +93,6 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0x60) {
         //     std.debug.print("0x60", .{});
         // store nn in rx;
-        const rx: u8 = cpu.pc[0] & 0x0f;
         cpu.registers[rx] = cpu.pc[1];
         cpu.pc += 2;
 
@@ -105,7 +102,6 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0x70) {
         //     std.debug.print("0x70", .{});
         // add nn to rx.
-        const rx: u8 = cpu.pc[0] & 0x0f;
         cpu.registers[rx] += cpu.pc[1];
         cpu.pc += 2;
         return;
@@ -116,32 +112,24 @@ pub fn readInstruction(cpu: *CPU) void {
         switch (cpu.pc[1] & 0x0f) {
             // store ry in rx.
             0x00 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] = cpu.registers[ry];
                 cpu.pc += 2;
                 return;
             },
             // set rx to rx | ry.
             0x01 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] |= cpu.registers[ry];
                 cpu.pc += 2;
                 return;
             },
             // set rx to rx & ry.
             0x02 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] &= cpu.registers[ry];
                 cpu.pc += 2;
                 return;
             },
             // set rx to rx ^ ry.
             0x03 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 cpu.registers[rx] ^= cpu.registers[ry];
                 cpu.pc += 2;
                 return;
@@ -149,8 +137,6 @@ pub fn readInstruction(cpu: *CPU) void {
             // add ry to rx,
             // set rf to carry.
             0x04 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 const tmp: u8 = cpu.registers[ry];
                 cpu.registers[rx] += tmp;
 
@@ -162,8 +148,6 @@ pub fn readInstruction(cpu: *CPU) void {
             // sub ry from rx,
             // set rf to !borrow.
             0x05 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 const tmp: u8 = cpu.registers[ry];
                 cpu.registers[rx] -= tmp;
 
@@ -175,8 +159,6 @@ pub fn readInstruction(cpu: *CPU) void {
             // store ry >> 1 in rx,
             // set rf to ry lsb pre-shift.
             0x06 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 const lsb: u8 = (cpu.registers[ry] & 0x01);
 
                 cpu.registers[rx] = cpu.registers[ry] >> 1;
@@ -188,8 +170,6 @@ pub fn readInstruction(cpu: *CPU) void {
             // store ry - rx in rx,
             // set rf to !borrow.
             0x07 => {
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 const tmp: u8 = cpu.registers[rx];
                 cpu.registers[rx] = cpu.registers[ry] - tmp;
 
@@ -202,8 +182,6 @@ pub fn readInstruction(cpu: *CPU) void {
             // set rf to msb pre-shift.
             0x08 => {
                 //             std.debug.print("shift left.\n", .{});
-                const rx: u8 = cpu.pc[0] & 0x0f;
-                const ry: u8 = cpu.pc[1] >> 1;
                 const msb: u8 = (cpu.registers[ry] & 0x80);
 
                 cpu.registers[rx] = cpu.registers[ry] << 1;
@@ -219,8 +197,6 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0x90) {
         //     std.debug.print("0x90", .{});
         // skip next if rx != ry.
-        const rx: u8 = cpu.pc[0] & 0x0f;
-        const ry: u8 = cpu.pc[1] >> 1;
 
         if (cpu.registers[rx] != cpu.registers[ry]) {
             cpu.pc += 4;
@@ -261,7 +237,6 @@ pub fn readInstruction(cpu: *CPU) void {
     if (cpu.pc[0] & 0xf0 == 0xc0) {
         //     std.debug.print("0xc0", .{});
         // rx = random number 0-255 & NN.
-        const rx: u8 = cpu.pc[0] & 0x0f;
         //TODO: RANDOM NUMBER
         const random: u8 = 66;
         cpu.registers[rx] = random & cpu.pc[1];
@@ -276,8 +251,6 @@ pub fn readInstruction(cpu: *CPU) void {
         // starting at i,
         // rf = 1 if pixel unset, else 0.
 
-        const rx: u8 = cpu.pc[0] & 0x0f;
-        const ry: u8 = (cpu.pc[1]) >> 4;
         const n: u8 = cpu.pc[1] & 0x0f;
 
         const x = cpu.registers[rx] % 64;
