@@ -24,12 +24,16 @@ pub fn readInstruction(cpu: *CPU) void {
     // std.debug.print("cur: {x:0>2} {x:0>2}\n", .{ cpu.pc[0], cpu.pc[1] });
     const rx: u8 = cpu.pc[0] & 0x0f;
     const ry: u8 = cpu.pc[1] >> 4;
+    var go_next: bool = true;
+    defer {
+        if (go_next) cpu.pc += 2;
+    }
 
     if (cpu.pc[0] == 0x00) {
         //     std.debug.print("0x00", .{});
         switch (cpu.pc[1]) {
             // clear the screen.
-            0xe0 => cpu.pc += 2,
+            0xe0 => return,
             // return from sr.
             0xee => return,
             else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
@@ -43,6 +47,7 @@ pub fn readInstruction(cpu: *CPU) void {
         //     std.debug.print("0x10", .{});
         const addr: u16 = std.mem.readInt(u16, cpu.pc[0..2], .big) & 0x0fff;
         cpu.pc = cpu.memory[addr..];
+        go_next = false;
         //     std.debug.print("addr: {x:0>4}", .{addr});
         return;
     }
@@ -57,8 +62,6 @@ pub fn readInstruction(cpu: *CPU) void {
         //     std.debug.print("0x30", .{});
         // skip next if rx == nn.
         if (cpu.registers[rx] == cpu.pc[1]) {
-            cpu.pc += 4;
-        } else {
             cpu.pc += 2;
         }
 
@@ -69,8 +72,6 @@ pub fn readInstruction(cpu: *CPU) void {
         //     std.debug.print("0x40", .{});
         // skip next if rx != nn.
         if (cpu.registers[rx] != cpu.pc[1]) {
-            cpu.pc += 4;
-        } else {
             cpu.pc += 2;
         }
 
@@ -82,8 +83,6 @@ pub fn readInstruction(cpu: *CPU) void {
         // skip next if rx == ry.
 
         if (cpu.registers[rx] == cpu.registers[ry]) {
-            cpu.pc += 4;
-        } else {
             cpu.pc += 2;
         }
 
@@ -94,7 +93,6 @@ pub fn readInstruction(cpu: *CPU) void {
         //     std.debug.print("0x60", .{});
         // store nn in rx;
         cpu.registers[rx] = cpu.pc[1];
-        cpu.pc += 2;
 
         return;
     }
@@ -103,7 +101,6 @@ pub fn readInstruction(cpu: *CPU) void {
         //     std.debug.print("0x70", .{});
         // add nn to rx.
         cpu.registers[rx] += cpu.pc[1];
-        cpu.pc += 2;
         return;
     }
 
@@ -113,25 +110,21 @@ pub fn readInstruction(cpu: *CPU) void {
             // store ry in rx.
             0x00 => {
                 cpu.registers[rx] = cpu.registers[ry];
-                cpu.pc += 2;
                 return;
             },
             // set rx to rx | ry.
             0x01 => {
                 cpu.registers[rx] |= cpu.registers[ry];
-                cpu.pc += 2;
                 return;
             },
             // set rx to rx & ry.
             0x02 => {
                 cpu.registers[rx] &= cpu.registers[ry];
-                cpu.pc += 2;
                 return;
             },
             // set rx to rx ^ ry.
             0x03 => {
                 cpu.registers[rx] ^= cpu.registers[ry];
-                cpu.pc += 2;
                 return;
             },
             // add ry to rx,
@@ -142,7 +135,6 @@ pub fn readInstruction(cpu: *CPU) void {
 
                 cpu.registers[0x0f] = @intFromBool(cpu.registers[rx] < tmp);
 
-                cpu.pc += 2;
                 return;
             },
             // sub ry from rx,
@@ -153,7 +145,6 @@ pub fn readInstruction(cpu: *CPU) void {
 
                 cpu.registers[0x0f] = @intFromBool(!(cpu.registers[rx] > tmp));
 
-                cpu.pc += 2;
                 return;
             },
             // store ry >> 1 in rx,
@@ -164,7 +155,6 @@ pub fn readInstruction(cpu: *CPU) void {
                 cpu.registers[rx] = cpu.registers[ry] >> 1;
                 cpu.registers[0x0f] = lsb;
 
-                cpu.pc += 2;
                 return;
             },
             // store ry - rx in rx,
@@ -175,7 +165,6 @@ pub fn readInstruction(cpu: *CPU) void {
 
                 cpu.registers[0x0f] = @intFromBool(!(cpu.registers[rx] > tmp));
 
-                cpu.pc += 2;
                 return;
             },
             // store ry << in rx,
@@ -187,7 +176,6 @@ pub fn readInstruction(cpu: *CPU) void {
                 cpu.registers[rx] = cpu.registers[ry] << 1;
                 cpu.registers[0x0f] = msb;
 
-                cpu.pc += 2;
                 return;
             },
             else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
@@ -199,11 +187,8 @@ pub fn readInstruction(cpu: *CPU) void {
         // skip next if rx != ry.
 
         if (cpu.registers[rx] != cpu.registers[ry]) {
-            cpu.pc += 4;
-        } else {
             cpu.pc += 2;
         }
-
         return;
     }
 
@@ -214,8 +199,6 @@ pub fn readInstruction(cpu: *CPU) void {
         addr <<= 8;
         addr |= cpu.pc[1];
         cpu.i = addr;
-
-        cpu.pc += 2;
 
         return;
     }
@@ -229,8 +212,6 @@ pub fn readInstruction(cpu: *CPU) void {
         addr += cpu.registers[0x00];
         cpu.i = addr;
 
-        cpu.pc += 2;
-
         return;
     }
 
@@ -241,7 +222,6 @@ pub fn readInstruction(cpu: *CPU) void {
         const random: u8 = 66;
         cpu.registers[rx] = random & cpu.pc[1];
 
-        cpu.pc += 2;
         return;
     }
 
@@ -287,7 +267,6 @@ pub fn readInstruction(cpu: *CPU) void {
             cpu.display[coord + 7] = cpu.registers[0x0f];
         }
 
-        cpu.pc += 2;
         return;
     }
 
