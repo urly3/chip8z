@@ -33,9 +33,13 @@ pub fn readInstruction(cpu: *CPU) void {
         //     std.debug.print("0x00", .{});
         switch (cpu.pc[1]) {
             // clear the screen.
-            0xe0 => return,
+            0xe0 => {
+                for (cpu.display[0 .. 64 * 32]) |*pix| {
+                    pix = 0;
+                }
+            },
             // return from sr.
-            0xee => return,
+            0xee => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
             else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
         }
 
