@@ -300,6 +300,9 @@ pub fn readInstruction(cpu: *CPU) void {
         // set sound time to rx.
 
         // add rx to i.
+        {
+            cpu.i += rx;
+        }
 
         // set i to rx sprite data addr.
 
@@ -308,8 +311,28 @@ pub fn readInstruction(cpu: *CPU) void {
         // store r0 through rx (incl) starting at i,
         // i = i + x + 1.
 
+        {
+            var r: u16 = 0;
+            while (r <= rx) : ({
+                r += 1;
+                cpu.i += 1;
+            }) {
+                cpu.memory[cpu.i] = cpu.registers[r];
+            }
+        }
+
         // fill r0 to rx (incl) with values starting at addr i.
         // i = i + x + 1.
+        {
+            var r: u16 = 0;
+            while (r <= rx) : ({
+                r += 1;
+                cpu.i += 1;
+            }) {
+                cpu.registers[r] = cpu.memory[cpu.i];
+            }
+        }
+
         unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
         return;
     }
