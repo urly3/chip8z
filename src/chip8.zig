@@ -35,7 +35,7 @@ pub fn readInstruction(cpu: *CPU) void {
             // clear the screen.
             0xe0 => {
                 for (cpu.display[0 .. 64 * 32]) |*pix| {
-                    pix = 0;
+                    pix.* = 0;
                 }
             },
             // return from sr.
