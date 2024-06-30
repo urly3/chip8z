@@ -1,4 +1,5 @@
 const std = @import("std");
+const rl = @import("raylib");
 
 pub const Chip8 = struct {
     memory: []u8,
@@ -279,11 +280,17 @@ pub fn readInstruction(cpu: *CPU) void {
         switch (cpu.pc[1]) {
             // skip next if key pressed in rx.
             0x9e => {
-                unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
+                const keyPressed = rl.getKeyPressed();
+                if (keyPressed == @as(rl.KeyboardKey, @enumFromInt(rx))) {
+                    cpu.pc += 2;
+                }
             },
             // skip next if key pressed not in rx.
             0xa1 => {
-                unimplementedInstruction(cpu.pc[0], cpu.pc[1]);
+                const keyPressed = rl.getKeyPressed();
+                if (keyPressed != @as(rl.KeyboardKey, @enumFromInt(rx))) {
+                    cpu.pc += 2;
+                }
             },
             else => unimplementedInstruction(cpu.pc[0], cpu.pc[1]),
         }
