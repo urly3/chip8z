@@ -1,86 +1,104 @@
 const std = @import("std");
-const c8 = @import("chip8.zig");
-const rl = @import("raylib");
 
-pub fn main() !void {
-    const scale = 4;
-    const tile_width = scale;
-    const tile_height = scale;
-    const window_width = 64 * scale;
-    const window_height = 32 * scale;
+const Rom = struct {
+    //
+};
 
-    rl.initWindow(window_width, window_height, "chip8");
-    defer rl.closeWindow();
+const Chip8 = struct {
+    memory: [0x1000]u8 = @splat(2),
+    registers: [0x10]u8 = @splat(0),
+    call_stack: [0x60]u8 = @splat(0),
+    display: []u1 = undefined,
 
-    const tile_black = rl.genImageColor(tile_width, tile_height, rl.Color.maroon);
-    const tile_white = rl.genImageColor(tile_width, tile_height, rl.Color.black);
+    program_counter: u16 = 0x200,
+    address_register: u12 = 0,
 
-    const tile_black_tex = rl.loadTextureFromImage(tile_black);
-    const tile_white_tex = rl.loadTextureFromImage(tile_white);
-
-    defer tile_black_tex.unload();
-    defer tile_white_tex.unload();
-
-    tile_black.unload();
-    tile_white.unload();
-
-    const rom = "roms/chip8_logo.ch8";
-    const file = try std.fs.cwd().openFile(rom, .{});
-    const font: [80]u8 = .{
-        0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-        0x20, 0x60, 0x20, 0x20, 0x70, // 1
-        0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-        0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-        0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-        0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-        0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-        0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-        0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-        0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-        0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-        0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-        0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-        0xF0, 0x80, 0xF0, 0x80, 0x80, // F
-    };
-
-    var mem: [4096]u8 = .{0} ** 4096;
-    var dis: [64 * 32]u8 = .{0} ** (64 * 32);
-
-    var chip8: c8.Chip8 = .{
-        .memory = &mem,
-        .stack = mem[0x01bb..],
-        .display = &dis,
-        .cpu = .{
-            .memory = &mem,
-            .pc = mem[0x0200..],
-            .display = &dis,
-        },
-    };
-
-    @memcpy(chip8.memory[0x0066 .. 0x0066 + font.len], font[0..]);
-
-    _ = try file.readAll(chip8.memory[0x0200..]);
-
-    const ns: u64 = 250_000_000;
-
-    while (!rl.windowShouldClose()) {
-        rl.beginDrawing();
-        defer rl.endDrawing();
-
-        var x: i32 = 0;
-        var y: i32 = 0;
-        for (chip8.display) |pixel| {
-            defer x += 1;
-            if (x == 64) {
-                x = 0;
-                y += tile_height;
-            }
-            rl.drawTexture(if (pixel == 0) tile_black_tex else tile_white_tex, x * tile_width, y, rl.Color.white);
-        }
-
-        c8.readInstruction(&chip8.cpu);
-        std.time.sleep(ns);
+    fn init() Chip8 {
+        var r: Chip8 = .{};
+        r.display = @ptrCast(r.memory[0xf00..]);
+        return r;
     }
+
+    // load the given rom into memory
+    fn loadRom(chip8: *Chip8, rom: *Rom) !void {
+        _ = chip8;
+        _ = rom;
+        //
+    }
+
+    // run the rom in memory
+    fn run(chip8: *Chip8) !void {
+
+        // loop here for now
+        // go through the program memory
+        // executing instructions
+        while (true) {
+            const pc = chip8.program_counter;
+            const opcode_bytes = chip8.memory[pc .. pc + 2];
+
+            switch (opcode_bytes[0]) {
+                0x0 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x1 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x2 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x3 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x4 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x5 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x6 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x7 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x8 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0x9 => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0xa => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0xb => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0xc => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0xd => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0xe => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                0xf => {
+                    unimpl(std.mem.readVarInt(u16, opcode_bytes, .big));
+                },
+                else => @panic("unknown instruction"),
+            }
+        }
+    }
+};
+
+fn unimpl(op: u16) void {
+    std.debug.print("op 0x{x:04} not implemented\n", .{op});
+    @panic(":)");
+}
+
+pub fn main(init: std.process.Init) !void {
+    _ = init;
+    var chip8 = Chip8.init();
+
+    try chip8.run();
 }
