@@ -355,7 +355,7 @@ const Chip8 = struct {
                     },
                     0x29 => {
                         // 0xFX29: set I to the character address for VX
-                        i.* = 0x50 + ((vx.* & 0x0f) * 4);
+                        i.* = 0x50 + ((vx.* & 0x0f) * 5);
                     },
                     0x33 => {
                         // 0xFX33: store three digit decimal of VX to I, I+1, I+2
@@ -429,7 +429,7 @@ pub fn main(init: std.process.Init) !void {
     const rom: Rom = try .load(init.arena.allocator(), init.io, args[1]);
     defer rom.unload(init.arena.allocator());
 
-    const font = [_]u8{
+    const font: [80]u8 = .{
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
         0x20, 0x60, 0x20, 0x20, 0x70, // 1
         0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -445,6 +445,7 @@ pub fn main(init: std.process.Init) !void {
         0xF0, 0x80, 0x80, 0x80, 0xF0, // C
         0xE0, 0x90, 0x90, 0x90, 0xE0, // D
         0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+        0xF0, 0x80, 0xF0, 0x80, 0x80, // F
     };
 
     chip8.loadRom(&rom);
