@@ -6,6 +6,8 @@ const cli = true;
 const screen_width = 64;
 const screen_height = 32;
 
+const cpu_hz = 480;
+
 var random: std.Random = undefined;
 
 const Snapshot = struct {
@@ -89,6 +91,16 @@ const Chip8 = struct {
         @memcpy(chip8.memory[0x200..end], rom.data);
 
         if (debug) {
+            std.debug.print("rom loaded\n", .{});
+            std.debug.print("{any}\n\n", .{chip8.memory});
+        }
+    }
+
+    fn loadFont(chip8: *Chip8, font: []const u8) void {
+        const end = 0x50 + font.len;
+        @memcpy(chip8.memory[0x50..end], font);
+        if (debug) {
+            std.debug.print("font loaded\n", .{});
             std.debug.print("{any}\n\n", .{chip8.memory});
         }
     }
@@ -261,18 +273,30 @@ const Chip8 = struct {
                 const sprite_data = chip8.memory[i.* .. i.* + n];
                 var display_index: usize = (vx.* / 8) + (vy.* * 8);
 
-                for (sprite_data) |sprite_byte| {
+                const first_index = display_index;
+
+                row: for (sprite_data) |sprite_byte| {
                     var display_byte = &display[display_index];
                     var display_bit = vx.* % 8;
 
                     for (0..8) |sprite_bit| {
+                        defer display_bit += 1;
                         if (display_bit == 8) {
                             display_bit = 0;
-                            display_byte = &display[display_index + 1];
+                            const next_index = (display_index + 1) % 0xff;
+                            display_byte = &display[next_index];
                         }
+                        if (display_index < first_index) {
+                            break :row;
+                        }
+
                         if (debug) {
-                            std.debug.print("sprite bit: {d}, display_index: {d}, display byte: {p}, display bit: {d}\n", .{ sprite_bit, display_index, display_byte, display_bit });
+                            std.debug.print(
+                                "sprite bit: {d}, display_index: {d}, display byte: {p}, display bit: {d}\n",
+                                .{ sprite_bit, display_index, display_byte, display_bit },
+                            );
                         }
+
                         const saved = display_byte.*;
                         const display_shift: u3 = @intCast(7 - display_bit);
                         const sprite_shift: u3 = @intCast(7 - sprite_bit);
@@ -283,11 +307,9 @@ const Chip8 = struct {
                         if (vf.* == 0) {
                             vf.* |= @intFromBool(saved == display_byte.*);
                         }
-
-                        display_bit += 1;
                     }
 
-                    display_index += 8;
+                    display_index = (display_index + 8) % 0xff;
                 }
 
                 if (debug) {
@@ -406,68 +428,103 @@ pub fn main(init: std.process.Init) !void {
     const rom: Rom = try .load(init.arena.allocator(), init.io, args[1]);
     defer rom.unload(init.arena.allocator());
 
+    const font = [_]u8{
+        0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+        0x20, 0x60, 0x20, 0x20, 0x70, // 1
+        0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+        0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+        0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+        0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+        0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+        0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+        0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+        0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+        0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+        0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+        0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    };
+
     chip8.loadRom(&rom);
+    chip8.loadFont(&font);
 
     var stdout_buf: [1024 * 3]u8 = @splat(0);
     var stdout = std.Io.File.stdout().writer(init.io, &stdout_buf);
 
     var display_cache: [0x100]u8 = @splat(0);
 
-    var render_timestamp = std.Io.Timestamp.now(init.io, .awake);
-    var timers_timestamp = std.Io.Timestamp.now(init.io, .awake);
+    var step_timestamp = std.Io.Timestamp.now(init.io, .awake);
+    var step_count: u64 = 0;
+    const steps_per_timer = cpu_hz / 60;
 
     while (true) {
-        defer if (cli) stdout.interface.flush() catch {};
         if (cli) {
             try stdout.interface.print("\x1b[H", .{});
-            try stdout.interface.flush();
+            try stdout.interface.defaultFlush();
         }
 
-        const render_delta_time = render_timestamp.untilNow(init.io, .awake).nanoseconds;
-        const timers_delta_time = timers_timestamp.untilNow(init.io, .awake).nanoseconds;
-
-        // 60hz: decrement timers > 0
-        if (timers_delta_time < 16_666_667) {
-            if (cli) try stdout.interface.print("timers dt: {d}\n", .{render_delta_time});
-        } else {
-            timers_timestamp = std.Io.Timestamp.now(init.io, .awake);
-            chip8.delay_timer -|= 1;
-            chip8.sound_timer -|= 1;
+        if (cli) {
+            try stdout.interface.print(
+                "step count: {d}\n",
+                .{step_count},
+            );
+            try stdout.interface.defaultFlush();
         }
 
-        // 1000hz: step cpu
-        if (render_delta_time < 1_000_000) {
-            if (cli) try stdout.interface.print("render dt: {d}\n", .{render_delta_time});
+        const now = std.Io.Timestamp.now(init.io, .awake);
+        const dt = now.nanoseconds - step_timestamp.nanoseconds;
+
+        if (cli) {
+            try stdout.interface.defaultFlush();
+            try stdout.interface.print(
+                "render delta: {d}\n",
+                .{dt},
+            );
+        }
+
+        // 500hz: step cpu
+        if (dt < std.time.ns_per_s / cpu_hz) {
             continue;
-        } else {
-            render_timestamp = std.Io.Timestamp.now(init.io, .awake);
         }
 
         chip8.step();
+        step_count += 1;
+        step_timestamp = now;
 
-        // only re-render if the display has changed
-        // smart price retained-ui
-        if (!std.mem.eql(u8, &display_cache, chip8.memory[0xf00..])) {
-            @memcpy(&display_cache, chip8.memory[0xf00..]);
+        // 60hz: decrement timers > 0; render
+        if (step_count % steps_per_timer == 0) {
+            chip8.delay_timer -|= 1;
+            chip8.sound_timer -|= 1;
 
-            if (cli) {
-                try stdout.interface.print("\n", .{});
-                for (display_cache, 0..) |byte, i| {
-                    if (i % 8 == 0) {
-                        try stdout.interface.print("\n", .{});
+            // only re-render if the display has changed
+            // smart price retained-ui
+            if (!std.mem.eql(u8, &display_cache, chip8.memory[0xf00..])) {
+                @memcpy(&display_cache, chip8.memory[0xf00..]);
+
+                if (cli) {
+                    try stdout.interface.print("\n", .{});
+                    for (display_cache, 0..) |byte, i| {
+                        if (i % 8 == 0) {
+                            try stdout.interface.print("\n", .{});
+                        }
+                        for (0..8) |bit| {
+                            const shift: u3 = @intCast(7 - bit);
+                            try stdout.interface.print(
+                                "{s}",
+                                .{if ((byte >> shift) & 0x01 == 1) "y " else ". "},
+                            );
+                        }
                     }
-                    for (0..8) |bit| {
-                        const shift: u3 = @intCast(7 - bit);
-                        try stdout.interface.print("{s}", .{if ((byte >> shift) & 0x01 == 1) "X " else ". "});
-                    }
+                    try stdout.interface.print("\n", .{});
                 }
-                try stdout.interface.print("\n", .{});
+                try stdout.interface.defaultFlush();
             }
         }
     }
 
     if (cli) {
         try stdout.interface.print("\n", .{});
-        try stdout.interface.flush();
+        try stdout.interface.defaultFlush();
     }
 }

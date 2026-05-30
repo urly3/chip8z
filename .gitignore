@@ -2,3 +2,5 @@ zig-out/
 .zig-cache/
 zig-pkg/
 roms/
+tmp/
+chip8z
