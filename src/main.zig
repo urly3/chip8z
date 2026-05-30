@@ -280,20 +280,21 @@ const Chip8 = struct {
                     var display_bit = vx.* % 8;
 
                     for (0..8) |sprite_bit| {
+                        var current_index = display_index;
                         defer display_bit += 1;
                         if (display_bit == 8) {
                             display_bit = 0;
-                            const next_index = (display_index + 1) % 0xff;
-                            display_byte = &display[next_index];
+                            current_index = (current_index + 1) % 0xff;
+                            display_byte = &display[current_index];
                         }
-                        if (display_index < first_index) {
+                        if (current_index < first_index) {
                             break :row;
                         }
 
                         if (debug) {
                             std.debug.print(
                                 "sprite bit: {d}, display_index: {d}, display byte: {p}, display bit: {d}\n",
-                                .{ sprite_bit, display_index, display_byte, display_bit },
+                                .{ sprite_bit, current_index, display_byte, display_bit },
                             );
                         }
 
@@ -458,6 +459,12 @@ pub fn main(init: std.process.Init) !void {
     var step_count: u64 = 0;
     const steps_per_timer = cpu_hz / 60;
 
+    // clear screen on app start
+    if (cli) {
+        try stdout.interface.print("\x1b[2J", .{});
+        try stdout.interface.defaultFlush();
+    }
+
     while (true) {
         if (cli) {
             try stdout.interface.print("\x1b[H", .{});
@@ -478,8 +485,8 @@ pub fn main(init: std.process.Init) !void {
         if (cli) {
             try stdout.interface.defaultFlush();
             try stdout.interface.print(
-                "render delta: {d}\n",
-                .{dt},
+                "render delta: {d:0>7}\n",
+                .{@as(u96, @intCast(dt))},
             );
         }
 
