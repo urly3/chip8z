@@ -10,55 +10,6 @@ const cpu_hz = 480;
 
 var random: std.Random = undefined;
 
-const Snapshot = struct {
-    pc: u16,
-    opcode: u16,
-    x: u4,
-    y: u4,
-    n: u4,
-    nn: u8,
-    nnn: u12,
-    r: [16]u8,
-    vx: u8,
-    vy: u8,
-    vf: u8,
-    i: u12,
-
-    fn create(chip8: *Chip8) Snapshot {
-        const pc = chip8.program_counter;
-        const opcode_bytes = chip8.memory[pc .. pc + 2];
-
-        const opcode = std.mem.readVarInt(u16, opcode_bytes, .big);
-        const x: u4 = @truncate(opcode >> 8);
-        const y: u4 = @truncate(opcode >> 4);
-        const n: u4 = @truncate(opcode);
-        const nn: u8 = @truncate(opcode);
-        const nnn: u12 = @truncate(opcode);
-
-        const r = chip8.registers;
-        const vx = r[x];
-        const vy = r[y];
-        const vf = r[0xf];
-
-        const i = chip8.address_register;
-
-        return .{
-            .pc = pc,
-            .opcode = opcode,
-            .r = r,
-            .vx = vx,
-            .vy = vy,
-            .vf = vf,
-            .i = i,
-            .x = x,
-            .y = y,
-            .n = n,
-            .nn = nn,
-            .nnn = nnn,
-        };
-    }
-};
-
 const Rom = struct {
     data: []const u8,
 
@@ -130,23 +81,23 @@ const Chip8 = struct {
 
         if (debug) {
             std.debug.print("display starts at address: {p}\n", .{&display[0]});
-
-            std.debug.print("pc: {x}\n", .{pc.*});
-
-            std.debug.print("op uint: {x}\n", .{opcode});
-
-            std.debug.print("x: {x}\n", .{x});
-            std.debug.print("y: {x}\n", .{y});
-            std.debug.print("n: {x}\n", .{n});
-            std.debug.print("nn: {x}\n", .{nn});
-            std.debug.print("nnn: {x}\n", .{nnn});
+            std.debug.print("pc: {x:02}\n", .{pc.*});
+            std.debug.print("op uint: {x:02}\n", .{opcode});
+            std.debug.print("x: {x:02}\n", .{x});
+            std.debug.print("y: {x:02}\n", .{y});
+            std.debug.print("n: {x:02}\n", .{n});
+            std.debug.print("nn: {x:02}\n", .{nn});
+            std.debug.print("nnn: {x:02}\n", .{nnn});
 
             for (0..16) |idx| {
-                std.debug.print("v{d}: {x}\n", .{chip8.registers[idx]});
+                std.debug.print("v{x:02}={x:02}{s} ", .{
+                    idx,
+                    chip8.registers[idx],
+                    if (idx == 0xf) " " else ",",
+                });
             }
-
-            std.debug.print("i: {x}\n", .{i.*});
-
+            std.debug.print("\n", .{});
+            std.debug.print("i: {x:02}\n", .{i.*});
             std.debug.print("\n\n", .{});
         }
 
@@ -161,10 +112,11 @@ const Chip8 = struct {
                     chip8.stack_index -= 1;
                     pc.* = chip8.address_stack[chip8.stack_index];
                 } else {
-                    // 0x0NNN: call machine code subroutine at NNN (idk just copy the other one)
-                    chip8.address_stack[chip8.stack_index] = pc.* + 2;
-                    chip8.stack_index += 1;
-                    pc.* = nnn;
+                    // 0x0NNN: call machine code subroutine at NNN
+                    // not sure this should be implemented lol
+                    const sr_addr: *const fn () callconv(.c) void = @ptrCast(&memory[nnn]);
+                    sr_addr();
+                    pc.* += 2;
                 }
             },
             0x1 => {
@@ -178,15 +130,15 @@ const Chip8 = struct {
                 pc.* = nnn;
             },
             0x3 => {
-                // 0xVXNN: skip the next instruction if VX == NN
+                // 0x3XNN: skip the next instruction if VX == NN
                 pc.* += if (vx.* == nn) 4 else 2;
             },
             0x4 => {
-                // 0xVXNN: skip the next instruction if VX != NN
+                // 0x4XNN: skip the next instruction if VX != NN
                 pc.* += if (vx.* != nn) 4 else 2;
             },
             0x5 => {
-                // 0xVXNN: skip the next instruction if VX == VY
+                // 0x5XNN: skip the next instruction if VX == VY
                 pc.* += if (vx.* == vy.*) 4 else 2;
             },
             0x6 => {
@@ -225,23 +177,27 @@ const Chip8 = struct {
                     },
                     0x5 => {
                         // 0x8XY5: sub VY from VX (carry flag changed)
-                        vf.* = @intFromBool((vx.* >= vy.*));
+                        const vf_result = @intFromBool(vx.* >= vy.*);
                         vx.* -%= vy.*;
+                        vf.* = vf_result;
                     },
                     0x6 => {
                         // 0x8XY6: shift VX to the right (carry flag set to lsb)
-                        vf.* = vx.* & 0x01;
+                        const vf_result = vx.* & 0x01;
                         vx.* >>= 1;
+                        vf.* = vf_result;
                     },
                     0x7 => {
                         // 0x8XY7: subtract VX from VY, store in VX (carry flag changed)
-                        vf.* = @intFromBool((vy.* >= vx.*));
+                        const vf_result = @intFromBool(vy.* >= vx.*);
                         vx.* = vy.* -% vx.*;
+                        vf.* = vf_result;
                     },
                     0xe => {
                         // 0x8XYE: shift VX to the right (carry flag set to lsb)
-                        vf.* = vx.* & 0x80;
+                        const vf_result = vx.* & 0x80;
                         vx.* <<= 1;
+                        vf.* = vf_result;
                     },
                     else => unknown(opcode),
                 }
@@ -259,7 +215,6 @@ const Chip8 = struct {
             0xb => {
                 // 0xBNNN: jump to address nnn + V0
                 pc.* = nnn + chip8.registers[0x0];
-                pc.* += 2;
             },
             0xc => {
                 // 0xCXNN: VX = rand (0..255) & NN
@@ -271,46 +226,40 @@ const Chip8 = struct {
                 // using sprite data starting at I, up to I+N
                 vf.* = 0;
                 const sprite_data = chip8.memory[i.* .. i.* + n];
-                var display_index: usize = (vx.* / 8) + (vy.* * 8);
+                const wrapped_vx = vx.* % 64;
+                const wrapped_vy = vy.* % 32;
+                var display_index: usize = (wrapped_vx / 8) + (wrapped_vy * 8);
 
-                const first_index = display_index;
-
-                row: for (sprite_data) |sprite_byte| {
+                for (sprite_data) |sprite_byte| {
                     var display_byte = &display[display_index];
-                    var display_bit = vx.* % 8;
+                    var display_bit = wrapped_vx % 8;
+                    var current_index = display_index;
 
                     for (0..8) |sprite_bit| {
-                        var current_index = display_index;
                         defer display_bit += 1;
                         if (display_bit == 8) {
                             display_bit = 0;
-                            current_index = (current_index + 1) % 0xff;
+                            current_index = (current_index + 1) % 0x100;
                             display_byte = &display[current_index];
-                        }
-                        if (current_index < first_index) {
-                            break :row;
                         }
 
                         if (debug) {
                             std.debug.print(
-                                "sprite bit: {d}, display_index: {d}, display byte: {p}, display bit: {d}\n",
+                                "sprite bit: {x:02}, display_index: {x:02}, display byte: {p}, display bit: {x:02}\n",
                                 .{ sprite_bit, current_index, display_byte, display_bit },
                             );
                         }
 
-                        const saved = display_byte.*;
                         const display_shift: u3 = @intCast(7 - display_bit);
                         const sprite_shift: u3 = @intCast(7 - sprite_bit);
 
-                        const sprite_bit_as_lsb = (sprite_byte >> sprite_shift) & 0x01;
-                        display_byte.* ^= sprite_bit_as_lsb << display_shift;
-
-                        if (vf.* == 0) {
-                            vf.* |= @intFromBool(saved == display_byte.*);
-                        }
+                        const old_bit_lsb = (display_byte.* >> display_shift) & 0x01;
+                        const sprite_bit_lsb = (sprite_byte >> sprite_shift) & 0x01;
+                        display_byte.* ^= sprite_bit_lsb << display_shift;
+                        vf.* |= old_bit_lsb & sprite_bit_lsb;
                     }
 
-                    display_index = (display_index + 8) % 0xff;
+                    display_index = (display_index + 8) % 0x100;
                 }
 
                 if (debug) {
@@ -367,7 +316,6 @@ const Chip8 = struct {
                     },
                     0x55 => {
                         // 0xFX55: store registers up to VX into memory, from I
-
                         for (0..x + 1) |index| {
                             chip8.memory[i.* + index] = chip8.registers[index];
                         }
