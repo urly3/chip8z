@@ -411,30 +411,27 @@ pub fn main(init: std.process.Init) !void {
     // clear screen on app start
     if (cli) {
         try stdout.interface.print("\x1b[2J", .{});
-        try stdout.interface.defaultFlush();
     }
 
     while (true) {
+        defer if (cli) stdout.interface.defaultFlush() catch {};
         if (cli) {
             try stdout.interface.print("\x1b[H", .{});
-            try stdout.interface.defaultFlush();
         }
 
         if (cli) {
             try stdout.interface.print(
-                "step count: {d}\n",
+                "step count:     {d}\n",
                 .{step_count},
             );
-            try stdout.interface.defaultFlush();
         }
 
         const now = std.Io.Timestamp.now(init.io, .awake);
         const dt = now.nanoseconds - step_timestamp.nanoseconds;
 
         if (cli) {
-            try stdout.interface.defaultFlush();
             try stdout.interface.print(
-                "render delta: {d:0>7}\n",
+                "render delta:   {d:0>8}\n",
                 .{@as(u96, @intCast(dt))},
             );
         }
@@ -456,6 +453,7 @@ pub fn main(init: std.process.Init) !void {
             // only re-render if the display has changed
             // smart price retained-ui
             if (!std.mem.eql(u8, &display_cache, chip8.memory[0xf00..])) {
+                const render_start = std.Io.Timestamp.now(init.io, .awake);
                 @memcpy(&display_cache, chip8.memory[0xf00..]);
 
                 if (cli) {
@@ -475,12 +473,17 @@ pub fn main(init: std.process.Init) !void {
                     try stdout.interface.print("\n", .{});
                 }
                 try stdout.interface.defaultFlush();
+                try stdout.interface.print("\x1b[H\n\n", .{});
+                try stdout.interface.print(
+                    "render time ns: {d:0>8}",
+                    .{@as(u96, @intCast(render_start.untilNow(init.io, .awake).nanoseconds))},
+                );
             }
         }
     }
 
     if (cli) {
         try stdout.interface.print("\n", .{});
-        try stdout.interface.defaultFlush();
+        stdout.interface.defaultFlush() catch {};
     }
 }
