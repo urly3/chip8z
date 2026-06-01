@@ -1,20 +1,39 @@
 const std = @import("std");
 
-const debug = false;
-const cli = true;
+const sdl = @import("zsdl3");
+const keycode = sdl.keycode;
 
-const screen_width = 64;
-const screen_height = 32;
+const debug = false;
 
 const cpu_hz = 480;
 
+const chip8_width = 64;
+const chip8_height = 32;
+const render_scale = 10;
+const window_width = chip8_width * render_scale;
+const window_height = chip8_height * render_scale;
+
 var random: std.Random = undefined;
+
+// 16key pad - 0 through 15
+// holy confusing to write
+//  1 2 3 C  //  1 2 3 4  //  x 1 2 3
+//  4 5 6 D  //  q w e r  //  q w e a
+//  7 8 9 E  //  a s d f  //  s d z c
+//  a 0 B F  //  z x c v  //  4 r f v
+const key_code_to_sdl = [16]sdl.SDL_Scancode{
+    keycode.SDL_SCANCODE_X, keycode.SDL_SCANCODE_1, keycode.SDL_SCANCODE_2, keycode.SDL_SCANCODE_3, //
+    keycode.SDL_SCANCODE_Q, keycode.SDL_SCANCODE_W, keycode.SDL_SCANCODE_E, keycode.SDL_SCANCODE_A, //
+    keycode.SDL_SCANCODE_S, keycode.SDL_SCANCODE_D, keycode.SDL_SCANCODE_Z, keycode.SDL_SCANCODE_C, //
+    keycode.SDL_SCANCODE_4, keycode.SDL_SCANCODE_R, keycode.SDL_SCANCODE_F, keycode.SDL_SCANCODE_V, //
+};
 
 const Rom = struct {
     data: []const u8,
 
     fn load(allocator: std.mem.Allocator, io: std.Io, filename: []const u8) !Rom {
         var file = try std.Io.Dir.cwd().openFile(io, filename, .{});
+        defer file.close(io);
         var reader = file.reader(io, &.{});
         return .{
             .data = try reader.interface.allocRemaining(allocator, .unlimited),
@@ -345,18 +364,70 @@ const Chip8 = struct {
     }
 };
 
-// TODO: implement
 fn isKeyPressed(key_code: u8) bool {
-    _ = key_code;
-    return false;
+    if (key_code > 0xf) return false;
+
+    const key_state = sdl.getKeyboardState(null) orelse unreachable;
+    return key_state[@intCast(key_code_to_sdl[key_code])];
 }
 
-// TODO: implement
 fn waitNextKeyPress() u8 {
-    return 0x00;
+    var event: sdl.SDL_Event = undefined;
+    // infinitely wait for events
+    // only leaving when a key is pressed
+    while (true) {
+        while (sdl.pollEvent(&event)) {
+            switch (event.type) {
+                sdl.SDL_EVENT_KEY_DOWN => {
+                    if (event.key.scancode == sdl.SDL_SCANCODE_1)
+                        return 0x1;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_2)
+                        return 0x2;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_3)
+                        return 0x3;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_4)
+                        return 0xc;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_Q)
+                        return 0x4;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_W)
+                        return 0x5;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_E)
+                        return 0x6;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_R)
+                        return 0xd;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_A)
+                        return 0x7;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_S)
+                        return 0x8;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_D)
+                        return 0x9;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_F)
+                        return 0xe;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_Z)
+                        return 0xa;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_X)
+                        return 0x0;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_C)
+                        return 0xb;
+                    if (event.key.scancode == sdl.SDL_SCANCODE_V)
+                        return 0xf;
+                },
+                else => {},
+            }
+        }
+    }
 }
 
 pub fn main(init: std.process.Init) !void {
+    if (!sdl.init(sdl.SDL_INIT_VIDEO)) return error.sdlinit;
+    defer sdl.quit();
+
+    const window = sdl.createWindow("chip8z", window_width, window_height, sdl.SDL_WINDOW_RESIZABLE) orelse return error.windowinit;
+    defer sdl.destroyWindow(window);
+
+    const renderer = sdl.createRenderer(window, null) orelse return error.renderinit;
+    defer sdl.destroyRenderer(renderer);
+
     defer _ = init.arena.reset(.free_all);
 
     var chip8: Chip8 = .{};
@@ -395,12 +466,27 @@ pub fn main(init: std.process.Init) !void {
         0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
         0xF0, 0x80, 0xF0, 0x80, 0x80, // F
     };
+    const font_rounded: [80]u8 = .{
+        0x60, 0x90, 0x90, 0x90, 0x60, // 0
+        0x20, 0x60, 0x20, 0x20, 0x70, // 1
+        0x60, 0x10, 0x60, 0x80, 0x60, // 2
+        0x60, 0x10, 0x60, 0x10, 0x60, // 3
+        0x90, 0x90, 0x60, 0x10, 0x10, // 4
+        0x60, 0x80, 0x60, 0x10, 0x60, // 5
+        0x60, 0x80, 0x60, 0x90, 0x60, // 6
+        0x60, 0x10, 0x20, 0x40, 0x40, // 7
+        0x60, 0x90, 0x60, 0x90, 0x60, // 8
+        0x60, 0x90, 0x60, 0x10, 0x60, // 9
+        0x60, 0x90, 0x60, 0x90, 0x90, // A
+        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+        0x60, 0x80, 0x80, 0x80, 0x60, // C
+        0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+        0x60, 0x80, 0x60, 0x80, 0x60, // E
+        0x60, 0x80, 0x60, 0x80, 0x80, // F
+    };
 
     chip8.loadRom(&rom);
-    chip8.loadFont(&font);
-
-    var stdout_buf: [1024 * 3]u8 = @splat(0);
-    var stdout = std.Io.File.stdout().writer(init.io, &stdout_buf);
+    chip8.loadFont(if (true) &font_rounded else &font);
 
     var display_cache: [0x100]u8 = @splat(0);
 
@@ -408,33 +494,24 @@ pub fn main(init: std.process.Init) !void {
     var step_count: u64 = 0;
     const steps_per_timer = cpu_hz / 60;
 
-    // clear screen on app start
-    if (cli) {
-        try stdout.interface.print("\x1b[2J", .{});
-    }
-
-    while (true) {
-        defer if (cli) stdout.interface.defaultFlush() catch {};
-        if (cli) {
-            try stdout.interface.print("\x1b[H", .{});
-        }
-
-        if (cli) {
-            try stdout.interface.print(
-                "step count:     {d}\n",
-                .{step_count},
-            );
+    outer: while (true) {
+        sdl.pumpEvents();
+        var event: sdl.SDL_Event = undefined;
+        while (sdl.pollEvent(&event)) {
+            switch (event.type) {
+                sdl.SDL_EVENT_QUIT => {
+                    break :outer;
+                },
+                sdl.SDL_EVENT_KEY_DOWN => {
+                    if (event.key.scancode == sdl.SDL_SCANCODE_ESCAPE)
+                        break :outer;
+                },
+                else => {},
+            }
         }
 
         const now = std.Io.Timestamp.now(init.io, .awake);
         const dt = now.nanoseconds - step_timestamp.nanoseconds;
-
-        if (cli) {
-            try stdout.interface.print(
-                "render delta:   {d:0>8}\n",
-                .{@as(u96, @intCast(dt))},
-            );
-        }
 
         // 500hz: step cpu
         if (dt < std.time.ns_per_s / cpu_hz) {
@@ -453,37 +530,53 @@ pub fn main(init: std.process.Init) !void {
             // only re-render if the display has changed
             // smart price retained-ui
             if (!std.mem.eql(u8, &display_cache, chip8.memory[0xf00..])) {
-                const render_start = std.Io.Timestamp.now(init.io, .awake);
-                @memcpy(&display_cache, chip8.memory[0xf00..]);
-
-                if (cli) {
-                    try stdout.interface.print("\n", .{});
-                    for (display_cache, 0..) |byte, i| {
-                        if (i % 8 == 0) {
-                            try stdout.interface.print("\n", .{});
-                        }
-                        for (0..8) |bit| {
-                            const shift: u3 = @intCast(7 - bit);
-                            try stdout.interface.print(
-                                "{s}",
-                                .{if ((byte >> shift) & 0x01 == 1) "y " else ". "},
-                            );
-                        }
-                    }
-                    try stdout.interface.print("\n", .{});
-                }
-                try stdout.interface.defaultFlush();
-                try stdout.interface.print("\x1b[H\n\n", .{});
-                try stdout.interface.print(
-                    "render time ns: {d:0>8}",
-                    .{@as(u96, @intCast(render_start.untilNow(init.io, .awake).nanoseconds))},
+                _ = sdl.setRenderDrawColor(
+                    renderer,
+                    255,
+                    150,
+                    150,
+                    255,
                 );
+                _ = sdl.renderClear(renderer);
+
+                @memcpy(&display_cache, chip8.memory[0xf00..]);
+                const surface = sdl.createSurfaceFrom(chip8_width, chip8_height, 0x11200100, &display_cache, 8) orelse {
+                    const error_msg = sdl.getError();
+                    if (error_msg) |msg| {
+                        std.log.err("{s}", .{msg});
+                    }
+                    return error.surface;
+                };
+                defer sdl.destroySurface(surface);
+
+                const palette = sdl.createSurfacePalette(surface) orelse {
+                    const error_msg = sdl.getError();
+                    if (error_msg) |msg| {
+                        std.log.err("{s}", .{msg});
+                    }
+                    return error.palette;
+                };
+
+                palette.colors.?[0] = .{
+                    .r = 255,
+                    .g = 150,
+                    .b = 150,
+                    .a = 150,
+                };
+
+                const texture = sdl.createTextureFromSurface(renderer, surface) orelse {
+                    const error_msg = sdl.getError();
+                    if (error_msg) |msg| {
+                        std.log.err("{s}", .{msg});
+                    }
+                    return error.texture;
+                };
+                defer sdl.destroyTexture(texture);
+                _ = sdl.setTextureScaleMode(texture, sdl.SDL_SCALEMODE_PIXELART);
+
+                _ = sdl.renderTexture(renderer, texture, null, null);
+                _ = sdl.renderPresent(renderer);
             }
         }
-    }
-
-    if (cli) {
-        try stdout.interface.print("\n", .{});
-        stdout.interface.defaultFlush() catch {};
     }
 }

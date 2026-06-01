@@ -3,7 +3,12 @@
     .fingerprint = 0x237014db00858d2a,
     .version = "0.0.0",
     .minimum_zig_version = "0.16.0",
-    .dependencies = .{},
+    .dependencies = .{
+        .zsdl3 = .{
+            .url = "git+https://github.com/felixuxx/zsdl3.git#62ed305fc030aef1cdaac82846508cda77048c02",
+            .hash = "zsdl3-0.0.0-l0pNpN_4BQAgnIz_qt9GKeZC3YA_zFg0OkTMR79dpalf",
+        },
+    },
     .paths = .{
         "",
     },

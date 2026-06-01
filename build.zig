@@ -2,7 +2,6 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
@@ -13,6 +12,17 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    exe.root_module.addLibraryPath(b.path("./lib/sdl"));
+    exe.root_module.linkSystemLibrary(
+        "SDL3.dll",
+        .{
+            .needed = true,
+            .preferred_link_mode = .static,
+        },
+    );
+
+    const zsdl3 = b.dependency("zsdl3", .{});
+    exe.root_module.addImport("zsdl3", zsdl3.module("zsdl3"));
 
     b.installArtifact(exe);
 
