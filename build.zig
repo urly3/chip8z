@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addLibraryPath(b.path("./lib/sdl"));
     exe.root_module.linkSystemLibrary(
-        "SDL3.dll",
+        "SDL3",
         .{
             .needed = true,
             .preferred_link_mode = .static,
