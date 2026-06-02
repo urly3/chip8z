@@ -419,6 +419,12 @@ fn waitNextKeyPress() u8 {
 }
 
 pub fn main(init: std.process.Init) !void {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len != 2) {
+        std.debug.print("chip8z rom_file_path\n", .{});
+        return;
+    }
+
     if (!sdl.init(sdl.SDL_INIT_VIDEO)) return error.sdlinit;
     defer sdl.quit();
 
@@ -438,12 +444,6 @@ pub fn main(init: std.process.Init) !void {
         ).toMilliseconds()),
     );
     random = rng.random();
-
-    const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 2) {
-        std.debug.print("chip8z rom_file_path\n", .{});
-        return;
-    }
 
     const rom: Rom = try .load(init.arena.allocator(), init.io, args[1]);
     defer rom.unload(init.arena.allocator());
